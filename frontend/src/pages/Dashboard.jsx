@@ -6,9 +6,10 @@ function Dashboard() {
   const [activeId, setActiveId] = useState(null);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
+  const [customerTyping, setCustomerTyping] = useState(false);
   const messagesEndRef = useRef(null);
+  const typingTimeoutRef = useRef(null);
 
-  // Load conversation list on mount
   useEffect(() => {
     fetch(`${import.meta.env.VITE_SOCKET_URL}/api/conversations`)
       .then((res) => res.json())
@@ -16,7 +17,6 @@ function Dashboard() {
       .catch((err) => console.error("Error loading conversations:", err));
   }, []);
 
-  // Listen for new messages globally, to update the list preview
   useEffect(() => {
     socket.on("receive_message", (message) => {
       if (message.conversationId === activeId) {
@@ -24,18 +24,29 @@ function Dashboard() {
       }
     });
 
+    socket.on("typing", ({ sender }) => {
+      if (sender === "customer") setCustomerTyping(true);
+    });
+
+    socket.on("stop_typing", ({ sender }) => {
+      if (sender === "customer") setCustomerTyping(false);
+    });
+
     return () => {
       socket.off("receive_message");
+      socket.off("typing");
+      socket.off("stop_typing");
     };
   }, [activeId]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages, customerTyping]);
 
   const openConversation = (conversationId) => {
     setActiveId(conversationId);
     setMessages([]);
+    setCustomerTyping(false);
 
     socket.emit("join_conversation", conversationId);
 
@@ -54,6 +65,7 @@ function Dashboard() {
       text: input,
     });
 
+    socket.emit("stop_typing", { conversationId: activeId, sender: "agent" });
     setInput("");
   };
 
@@ -61,9 +73,21 @@ function Dashboard() {
     if (e.key === "Enter") sendReply();
   };
 
+  const handleInputChange = (e) => {
+    setInput(e.target.value);
+
+    if (!activeId) return;
+
+    socket.emit("typing", { conversationId: activeId, sender: "agent" });
+
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    typingTimeoutRef.current = setTimeout(() => {
+      socket.emit("stop_typing", { conversationId: activeId, sender: "agent" });
+    }, 1500);
+  };
+
   return (
     <div className="min-h-screen bg-gray-100 flex">
-      {/* Sidebar */}
       <div className="w-72 bg-white border-r overflow-y-auto">
         <div className="p-4 border-b font-semibold text-gray-800">
           Conversations
@@ -84,7 +108,6 @@ function Dashboard() {
         ))}
       </div>
 
-      {/* Chat window */}
       <div className="flex-1 flex flex-col">
         {activeId ? (
           <>
@@ -108,13 +131,22 @@ function Dashboard() {
                   </div>
                 </div>
               ))}
+
+              {customerTyping && (
+                <div className="flex justify-start">
+                  <div className="px-3 py-2 rounded-2xl bg-gray-200 text-gray-500 text-sm italic">
+                    Customer is typing...
+                  </div>
+                </div>
+              )}
+
               <div ref={messagesEndRef} />
             </div>
             <div className="p-3 border-t flex gap-2">
               <input
                 type="text"
                 value={input}
-                onChange={(e) => setInput(e.target.value)}
+                onChange={handleInputChange}
                 onKeyDown={handleKeyDown}
                 placeholder="Type a reply..."
                 className="flex-1 border rounded-full px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"

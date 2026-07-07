@@ -38,6 +38,14 @@ io.on("connection", (socket) => {
     console.log(`Socket ${socket.id} joined room ${conversationId}`);
   });
 
+  socket.on("typing", ({ conversationId, sender }) => {
+    socket.to(conversationId).emit("typing", { sender });
+  });
+
+  socket.on("stop_typing", ({ conversationId, sender }) => {
+    socket.to(conversationId).emit("stop_typing", { sender });
+  });
+
   socket.on("send_message", async ({ conversationId, sender, text }) => {
     try {
       let conversation = await Conversation.findOne({ conversationId });

@@ -7,7 +7,9 @@ function Widget() {
   const [connected, setConnected] = useState(false);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
+  const [agentTyping, setAgentTyping] = useState(false);
   const messagesEndRef = useRef(null);
+  const typingTimeoutRef = useRef(null);
 
   useEffect(() => {
     fetch(`${import.meta.env.VITE_SOCKET_URL}/api/conversations/${CONVERSATION_ID}`)
@@ -28,6 +30,14 @@ function Widget() {
       }
     });
 
+    socket.on("typing", ({ sender }) => {
+      if (sender === "agent") setAgentTyping(true);
+    });
+
+    socket.on("stop_typing", ({ sender }) => {
+      if (sender === "agent") setAgentTyping(false);
+    });
+
     socket.on("disconnect", () => {
       setConnected(false);
     });
@@ -35,13 +45,15 @@ function Widget() {
     return () => {
       socket.off("connect");
       socket.off("receive_message");
+      socket.off("typing");
+      socket.off("stop_typing");
       socket.off("disconnect");
     };
   }, []);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages, agentTyping]);
 
   const sendMessage = () => {
     if (!input.trim()) return;
@@ -52,11 +64,23 @@ function Widget() {
       text: input,
     });
 
+    socket.emit("stop_typing", { conversationId: CONVERSATION_ID, sender: "customer" });
     setInput("");
   };
 
   const handleKeyDown = (e) => {
     if (e.key === "Enter") sendMessage();
+  };
+
+  const handleInputChange = (e) => {
+    setInput(e.target.value);
+
+    socket.emit("typing", { conversationId: CONVERSATION_ID, sender: "customer" });
+
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    typingTimeoutRef.current = setTimeout(() => {
+      socket.emit("stop_typing", { conversationId: CONVERSATION_ID, sender: "customer" });
+    }, 1500);
   };
 
   return (
@@ -86,6 +110,15 @@ function Widget() {
               </div>
             </div>
           ))}
+
+          {agentTyping && (
+            <div className="flex justify-start">
+              <div className="px-3 py-2 rounded-2xl bg-gray-200 text-gray-500 text-sm italic">
+                Agent is typing...
+              </div>
+            </div>
+          )}
+
           <div ref={messagesEndRef} />
         </div>
 
@@ -93,7 +126,7 @@ function Widget() {
           <input
             type="text"
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={handleInputChange}
             onKeyDown={handleKeyDown}
             placeholder="Type a message..."
             className="flex-1 border rounded-full px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
