@@ -1,6 +1,41 @@
 import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import { Send, LogOut, MessageCircle } from "lucide-react";
 import socket from "../socket";
+
+const AVATAR_COLORS = [
+  "bg-blue-500",
+  "bg-purple-500",
+  "bg-pink-500",
+  "bg-amber-500",
+  "bg-teal-500",
+  "bg-indigo-500",
+];
+
+function getAvatarColor(str) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+}
+
+function getInitial(str) {
+  return (str || "?").trim().charAt(0).toUpperCase();
+}
+
+function formatTime(date) {
+  if (!date) return "";
+  return new Date(date).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+}
+
+function formatListTime(date) {
+  if (!date) return "";
+  const d = new Date(date);
+  const now = new Date();
+  const isToday = d.toDateString() === now.toDateString();
+  return isToday
+    ? d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+    : d.toLocaleDateString([], { month: "short", day: "numeric" });
+}
 
 function Dashboard() {
   const [conversations, setConversations] = useState([]);
@@ -16,6 +51,8 @@ function Dashboard() {
   const agent = JSON.parse(localStorage.getItem("livedesk_agent") || "null");
   const business = JSON.parse(localStorage.getItem("livedesk_business") || "null");
   const businessId = business?.businessId;
+
+  const activeConversation = conversations.find((c) => c.conversationId === activeId);
 
   useEffect(() => {
     if (!token) {
@@ -116,94 +153,171 @@ function Dashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 flex">
-      <div className="w-72 bg-white border-r overflow-y-auto flex flex-col">
-        <div className="p-4 border-b flex items-center justify-between">
-          <div>
-            <div className="font-semibold text-gray-800">
-              {business?.name || "Conversations"}
+    <div className="h-screen bg-slate-50 flex">
+      {/* Sidebar */}
+      <div className="w-80 bg-white border-r border-slate-200 flex flex-col">
+        <div className="p-4 border-b border-slate-200 flex items-center justify-between">
+          <div className="min-w-0">
+            <div className="font-semibold text-slate-900 truncate">
+              {business?.name || "LiveDesk"}
             </div>
-            {agent && <div className="text-xs text-gray-500">{agent.name}</div>}
+            {agent && (
+              <div className="text-xs text-slate-500 truncate">Signed in as {agent.name}</div>
+            )}
           </div>
           <button
             onClick={handleLogout}
-            className="text-xs text-red-500 hover:underline"
+            title="Log out"
+            className="text-slate-400 hover:text-red-500 transition-colors p-1.5 rounded-lg hover:bg-slate-50 shrink-0"
           >
-            Logout
+            <LogOut size={16} />
           </button>
         </div>
+
         <div className="flex-1 overflow-y-auto">
-          {conversations.map((conv) => (
-            <div
-              key={conv._id}
-              onClick={() => openConversation(conv.conversationId)}
-              className={`p-4 border-b cursor-pointer hover:bg-gray-50 ${
-                activeId === conv.conversationId ? "bg-blue-50" : ""
-              }`}
-            >
-              <div className="font-medium text-sm text-gray-800">
-                {conv.customerName || "Anonymous Customer"}
-              </div>
-              <div className="text-xs text-gray-500">{conv.conversationId}</div>
+          {conversations.length === 0 ? (
+            <div className="p-6 text-center text-sm text-slate-400">
+              No conversations yet. They'll show up here as customers message you.
             </div>
-          ))}
+          ) : (
+            conversations.map((conv) => {
+              const isActive = activeId === conv.conversationId;
+              const label = conv.customerName || "Anonymous Customer";
+              return (
+                <div
+                  key={conv._id}
+                  onClick={() => openConversation(conv.conversationId)}
+                  className={`flex items-center gap-3 px-4 py-3 cursor-pointer border-l-2 transition-colors ${
+                    isActive
+                      ? "bg-blue-50 border-l-blue-600"
+                      : "border-l-transparent hover:bg-slate-50"
+                  }`}
+                >
+                  <div
+                    className={`w-10 h-10 rounded-full ${getAvatarColor(
+                      conv.conversationId
+                    )} text-white flex items-center justify-center text-sm font-semibold shrink-0`}
+                  >
+                    {getInitial(label)}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="font-medium text-sm text-slate-900 truncate">{label}</div>
+                      <div className="text-[11px] text-slate-400 shrink-0">
+                        {formatListTime(conv.updatedAt)}
+                      </div>
+                    </div>
+                    <div className="text-xs text-slate-500 truncate">{conv.conversationId}</div>
+                  </div>
+                </div>
+              );
+            })
+          )}
         </div>
       </div>
 
+      {/* Main chat area */}
       <div className="flex-1 flex flex-col">
         {activeId ? (
           <>
-            <div className="bg-blue-600 text-white px-4 py-3 font-semibold">
-              {activeId}
-            </div>
-            <div className="flex-1 overflow-y-auto p-4 space-y-2 bg-gray-50">
-              {messages.map((msg) => (
-                <div
-                  key={msg._id || Math.random()}
-                  className={`flex ${msg.sender === "agent" ? "justify-end" : "justify-start"}`}
-                >
-                  <div
-                    className={`px-3 py-2 rounded-2xl max-w-[60%] text-sm ${
-                      msg.sender === "agent"
-                        ? "bg-blue-600 text-white rounded-br-sm"
-                        : "bg-gray-200 text-gray-800 rounded-bl-sm"
-                    }`}
-                  >
-                    {msg.text}
-                  </div>
+            <div className="bg-white border-b border-slate-200 px-6 py-4 flex items-center gap-3">
+              <div
+                className={`w-9 h-9 rounded-full ${getAvatarColor(
+                  activeId
+                )} text-white flex items-center justify-center text-sm font-semibold`}
+              >
+                {getInitial(activeConversation?.customerName || "Anonymous Customer")}
+              </div>
+              <div>
+                <div className="font-semibold text-slate-900 text-sm">
+                  {activeConversation?.customerName || "Anonymous Customer"}
                 </div>
-              ))}
+                <div className="text-xs text-slate-400">{activeId}</div>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-50">
+              {messages.map((msg, idx) => {
+                const isAgent = msg.sender === "agent";
+                const prevMsg = messages[idx - 1];
+                const showAvatar = !prevMsg || prevMsg.sender !== msg.sender;
+
+                return (
+                  <div
+                    key={msg._id || idx}
+                    className={`flex items-end gap-2 ${isAgent ? "justify-end" : "justify-start"}`}
+                  >
+                    {!isAgent && (
+                      <div
+                        className={`w-7 h-7 rounded-full ${getAvatarColor(
+                          activeId
+                        )} text-white flex items-center justify-center text-[11px] font-semibold shrink-0 ${
+                          showAvatar ? "" : "invisible"
+                        }`}
+                      >
+                        {getInitial(activeConversation?.customerName || "A")}
+                      </div>
+                    )}
+                    <div className={`flex flex-col ${isAgent ? "items-end" : "items-start"} max-w-[55%]`}>
+                      <div
+                        className={`px-4 py-2 rounded-2xl text-sm leading-relaxed ${
+                          isAgent
+                            ? "bg-blue-600 text-white rounded-br-md"
+                            : "bg-white text-slate-800 rounded-bl-md border border-slate-200"
+                        }`}
+                      >
+                        {msg.text}
+                      </div>
+                      <span className="text-[11px] text-slate-400 mt-1 px-1">
+                        {formatTime(msg.createdAt)}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
 
               {customerTyping && (
-                <div className="flex justify-start">
-                  <div className="px-3 py-2 rounded-2xl bg-gray-200 text-gray-500 text-sm italic">
-                    Customer is typing...
+                <div className="flex items-end gap-2 justify-start">
+                  <div
+                    className={`w-7 h-7 rounded-full ${getAvatarColor(
+                      activeId
+                    )} text-white flex items-center justify-center text-[11px] font-semibold shrink-0`}
+                  >
+                    {getInitial(activeConversation?.customerName || "A")}
+                  </div>
+                  <div className="px-4 py-2.5 rounded-2xl rounded-bl-md bg-white border border-slate-200 flex gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-slate-300 animate-bounce [animation-delay:-0.3s]" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-slate-300 animate-bounce [animation-delay:-0.15s]" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-slate-300 animate-bounce" />
                   </div>
                 </div>
               )}
 
               <div ref={messagesEndRef} />
             </div>
-            <div className="p-3 border-t flex gap-2">
+
+            <div className="bg-white border-t border-slate-200 p-4 flex gap-2">
               <input
                 type="text"
                 value={input}
                 onChange={handleInputChange}
                 onKeyDown={handleKeyDown}
                 placeholder="Type a reply..."
-                className="flex-1 border rounded-full px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="flex-1 border border-slate-200 rounded-full px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
               <button
                 onClick={sendReply}
-                className="bg-blue-600 text-white px-4 py-2 rounded-full text-sm hover:bg-blue-700"
+                disabled={!input.trim()}
+                className="bg-blue-600 text-white w-10 h-10 rounded-full flex items-center justify-center hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0"
               >
-                Send
+                <Send size={16} />
               </button>
             </div>
           </>
         ) : (
-          <div className="flex-1 flex items-center justify-center text-gray-400">
-            Select a conversation to view messages
+          <div className="flex-1 flex flex-col items-center justify-center gap-3 text-slate-400">
+            <MessageCircle size={40} strokeWidth={1.5} />
+            <p className="text-sm">Select a conversation to view messages</p>
           </div>
         )}
       </div>
