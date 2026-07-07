@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 function Login() {
   const [isSignup, setIsSignup] = useState(false);
   const [name, setName] = useState("");
+  const [businessName, setBusinessName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -13,7 +14,9 @@ function Login() {
     setError("");
 
     const endpoint = isSignup ? "signup" : "login";
-    const body = isSignup ? { name, email, password } : { email, password };
+    const body = isSignup
+      ? { name, businessName, email, password }
+      : { email, password };
 
     try {
       const res = await fetch(`${import.meta.env.VITE_SOCKET_URL}/api/auth/${endpoint}`, {
@@ -31,6 +34,7 @@ function Login() {
 
       localStorage.setItem("livedesk_token", data.token);
       localStorage.setItem("livedesk_agent", JSON.stringify(data.agent));
+      localStorage.setItem("livedesk_business", JSON.stringify(data.business));
       navigate("/dashboard");
     } catch (err) {
       console.error("Auth error:", err);
@@ -46,7 +50,7 @@ function Login() {
     <div className="min-h-screen bg-gray-100 flex items-center justify-center">
       <div className="w-full max-w-sm bg-white rounded-2xl shadow-lg p-6">
         <h1 className="text-xl font-bold text-gray-800 mb-1">
-          {isSignup ? "Create agent account" : "Agent login"}
+          {isSignup ? "Create your business account" : "Agent login"}
         </h1>
         <p className="text-sm text-gray-500 mb-4">LiveDesk Dashboard</p>
 
@@ -57,13 +61,22 @@ function Login() {
         )}
 
         {isSignup && (
-          <input
-            type="text"
-            placeholder="Name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="w-full border rounded-lg px-3 py-2 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+          <>
+            <input
+              type="text"
+              placeholder="Your name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full border rounded-lg px-3 py-2 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <input
+              type="text"
+              placeholder="Business name"
+              value={businessName}
+              onChange={(e) => setBusinessName(e.target.value)}
+              className="w-full border rounded-lg px-3 py-2 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </>
         )}
 
         <input

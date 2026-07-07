@@ -14,6 +14,8 @@ function Dashboard() {
 
   const token = localStorage.getItem("livedesk_token");
   const agent = JSON.parse(localStorage.getItem("livedesk_agent") || "null");
+  const business = JSON.parse(localStorage.getItem("livedesk_business") || "null");
+  const businessId = business?.businessId;
 
   useEffect(() => {
     if (!token) {
@@ -26,8 +28,7 @@ function Dashboard() {
     })
       .then((res) => {
         if (res.status === 401) {
-          localStorage.removeItem("livedesk_token");
-          localStorage.removeItem("livedesk_agent");
+          localStorage.clear();
           navigate("/login");
           return null;
         }
@@ -41,7 +42,7 @@ function Dashboard() {
 
   useEffect(() => {
     socket.on("receive_message", (message) => {
-      if (message.conversationId === activeId) {
+      if (message.conversationId === activeId && message.businessId === businessId) {
         setMessages((prev) => [...prev, message]);
       }
     });
@@ -59,7 +60,7 @@ function Dashboard() {
       socket.off("typing");
       socket.off("stop_typing");
     };
-  }, [activeId]);
+  }, [activeId, businessId]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -70,9 +71,9 @@ function Dashboard() {
     setMessages([]);
     setCustomerTyping(false);
 
-    socket.emit("join_conversation", conversationId);
+    socket.emit("join_conversation", { businessId, conversationId });
 
-    fetch(`${import.meta.env.VITE_SOCKET_URL}/api/conversations/${conversationId}`)
+    fetch(`${import.meta.env.VITE_SOCKET_URL}/api/conversations/${businessId}/${conversationId}`)
       .then((res) => res.json())
       .then((data) => setMessages(data.messages || []))
       .catch((err) => console.error("Error loading messages:", err));
@@ -82,12 +83,13 @@ function Dashboard() {
     if (!input.trim() || !activeId) return;
 
     socket.emit("send_message", {
+      businessId,
       conversationId: activeId,
       sender: "agent",
       text: input,
     });
 
-    socket.emit("stop_typing", { conversationId: activeId, sender: "agent" });
+    socket.emit("stop_typing", { businessId, conversationId: activeId, sender: "agent" });
     setInput("");
   };
 
@@ -100,17 +102,16 @@ function Dashboard() {
 
     if (!activeId) return;
 
-    socket.emit("typing", { conversationId: activeId, sender: "agent" });
+    socket.emit("typing", { businessId, conversationId: activeId, sender: "agent" });
 
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     typingTimeoutRef.current = setTimeout(() => {
-      socket.emit("stop_typing", { conversationId: activeId, sender: "agent" });
+      socket.emit("stop_typing", { businessId, conversationId: activeId, sender: "agent" });
     }, 1500);
   };
 
   const handleLogout = () => {
-    localStorage.removeItem("livedesk_token");
-    localStorage.removeItem("livedesk_agent");
+    localStorage.clear();
     navigate("/login");
   };
 
@@ -119,7 +120,9 @@ function Dashboard() {
       <div className="w-72 bg-white border-r overflow-y-auto flex flex-col">
         <div className="p-4 border-b flex items-center justify-between">
           <div>
-            <div className="font-semibold text-gray-800">Conversations</div>
+            <div className="font-semibold text-gray-800">
+              {business?.name || "Conversations"}
+            </div>
             {agent && <div className="text-xs text-gray-500">{agent.name}</div>}
           </div>
           <button

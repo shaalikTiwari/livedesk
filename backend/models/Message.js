@@ -6,6 +6,10 @@ const messageSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    businessId: {
+      type: String,
+      required: true,
+    },
     sender: {
       type: String,
       enum: ["customer", "agent"],

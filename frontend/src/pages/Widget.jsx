@@ -1,10 +1,11 @@
 import { useEffect, useState, useRef } from "react";
 import socket from "../socket";
 
+const BUSINESS_ID = "acme-corp-niiaa"; // <-- keep this as YOUR real businessId
 const CONVERSATION_ID = "demo-conversation-1";
 
 function Widget() {
-  const [connected, setConnected] = useState(false);
+  const [connected, setConnected] = useState(socket.connected);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [agentTyping, setAgentTyping] = useState(false);
@@ -12,20 +13,27 @@ function Widget() {
   const typingTimeoutRef = useRef(null);
 
   useEffect(() => {
-    fetch(`${import.meta.env.VITE_SOCKET_URL}/api/conversations/${CONVERSATION_ID}`)
+    fetch(`${import.meta.env.VITE_SOCKET_URL}/api/conversations/${BUSINESS_ID}/${CONVERSATION_ID}`)
       .then((res) => res.json())
       .then((data) => {
         setMessages(data.messages || []);
       })
       .catch((err) => console.error("Error loading history:", err));
 
-    socket.on("connect", () => {
+    const joinRoom = () => {
       setConnected(true);
-      socket.emit("join_conversation", CONVERSATION_ID);
-    });
+      socket.emit("join_conversation", { businessId: BUSINESS_ID, conversationId: CONVERSATION_ID });
+    };
+
+    // Handle the case where the socket is ALREADY connected before this ran
+    if (socket.connected) {
+      joinRoom();
+    }
+
+    socket.on("connect", joinRoom);
 
     socket.on("receive_message", (message) => {
-      if (message.conversationId === CONVERSATION_ID) {
+      if (message.conversationId === CONVERSATION_ID && message.businessId === BUSINESS_ID) {
         setMessages((prev) => [...prev, message]);
       }
     });
@@ -43,7 +51,7 @@ function Widget() {
     });
 
     return () => {
-      socket.off("connect");
+      socket.off("connect", joinRoom);
       socket.off("receive_message");
       socket.off("typing");
       socket.off("stop_typing");
@@ -59,12 +67,17 @@ function Widget() {
     if (!input.trim()) return;
 
     socket.emit("send_message", {
+      businessId: BUSINESS_ID,
       conversationId: CONVERSATION_ID,
       sender: "customer",
       text: input,
     });
 
-    socket.emit("stop_typing", { conversationId: CONVERSATION_ID, sender: "customer" });
+    socket.emit("stop_typing", {
+      businessId: BUSINESS_ID,
+      conversationId: CONVERSATION_ID,
+      sender: "customer",
+    });
     setInput("");
   };
 
@@ -75,11 +88,19 @@ function Widget() {
   const handleInputChange = (e) => {
     setInput(e.target.value);
 
-    socket.emit("typing", { conversationId: CONVERSATION_ID, sender: "customer" });
+    socket.emit("typing", {
+      businessId: BUSINESS_ID,
+      conversationId: CONVERSATION_ID,
+      sender: "customer",
+    });
 
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     typingTimeoutRef.current = setTimeout(() => {
-      socket.emit("stop_typing", { conversationId: CONVERSATION_ID, sender: "customer" });
+      socket.emit("stop_typing", {
+        businessId: BUSINESS_ID,
+        conversationId: CONVERSATION_ID,
+        sender: "customer",
+      });
     }, 1500);
   };
 

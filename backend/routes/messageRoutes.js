@@ -5,9 +5,12 @@ import authMiddleware from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
+// Dashboard: list conversations for the logged-in agent's business ONLY
 router.get("/", authMiddleware, async (req, res) => {
   try {
-    const conversations = await Conversation.find().sort({ updatedAt: -1 });
+    const conversations = await Conversation.find({ businessId: req.businessId }).sort({
+      updatedAt: -1,
+    });
     res.json({ conversations });
   } catch (err) {
     console.error("Error fetching conversations:", err);
@@ -15,16 +18,19 @@ router.get("/", authMiddleware, async (req, res) => {
   }
 });
 
-router.get("/:conversationId", async (req, res) => {
+// Widget: get/create a conversation for a specific business + conversationId
+router.get("/:businessId/:conversationId", async (req, res) => {
   try {
-    const { conversationId } = req.params;
+    const { businessId, conversationId } = req.params;
 
-    let conversation = await Conversation.findOne({ conversationId });
+    let conversation = await Conversation.findOne({ businessId, conversationId });
     if (!conversation) {
-      conversation = await Conversation.create({ conversationId });
+      conversation = await Conversation.create({ businessId, conversationId });
     }
 
-    const messages = await Message.find({ conversationId }).sort({ createdAt: 1 });
+    const messages = await Message.find({ businessId, conversationId }).sort({
+      createdAt: 1,
+    });
 
     res.json({ conversation, messages });
   } catch (err) {

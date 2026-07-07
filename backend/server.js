@@ -32,32 +32,36 @@ const io = new Server(server, {
   },
 });
 
+// Helper: build a namespaced room name so businesses never collide
+const roomName = (businessId, conversationId) => `${businessId}::${conversationId}`;
+
 io.on("connection", (socket) => {
   console.log(`Socket connected: ${socket.id}`);
 
-  socket.on("join_conversation", (conversationId) => {
-    socket.join(conversationId);
-    console.log(`Socket ${socket.id} joined room ${conversationId}`);
+  socket.on("join_conversation", ({ businessId, conversationId }) => {
+    const room = roomName(businessId, conversationId);
+    socket.join(room);
+    console.log(`Socket ${socket.id} joined room ${room}`);
   });
 
-  socket.on("typing", ({ conversationId, sender }) => {
-    socket.to(conversationId).emit("typing", { sender });
+  socket.on("typing", ({ businessId, conversationId, sender }) => {
+    socket.to(roomName(businessId, conversationId)).emit("typing", { sender });
   });
 
-  socket.on("stop_typing", ({ conversationId, sender }) => {
-    socket.to(conversationId).emit("stop_typing", { sender });
+  socket.on("stop_typing", ({ businessId, conversationId, sender }) => {
+    socket.to(roomName(businessId, conversationId)).emit("stop_typing", { sender });
   });
 
-  socket.on("send_message", async ({ conversationId, sender, text }) => {
+  socket.on("send_message", async ({ businessId, conversationId, sender, text }) => {
     try {
-      let conversation = await Conversation.findOne({ conversationId });
+      let conversation = await Conversation.findOne({ businessId, conversationId });
       if (!conversation) {
-        conversation = await Conversation.create({ conversationId });
+        conversation = await Conversation.create({ businessId, conversationId });
       }
 
-      const message = await Message.create({ conversationId, sender, text });
+      const message = await Message.create({ businessId, conversationId, sender, text });
 
-      io.to(conversationId).emit("receive_message", message);
+      io.to(roomName(businessId, conversationId)).emit("receive_message", message);
     } catch (err) {
       console.error("Error saving message:", err);
     }

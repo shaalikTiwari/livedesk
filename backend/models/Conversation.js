@@ -5,7 +5,10 @@ const conversationSchema = new mongoose.Schema(
     conversationId: {
       type: String,
       required: true,
-      unique: true,
+    },
+    businessId: {
+      type: String,
+      required: true,
     },
     customerName: {
       type: String,
@@ -19,5 +22,8 @@ const conversationSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+// A conversationId only needs to be unique WITHIN a business, not globally
+conversationSchema.index({ businessId: 1, conversationId: 1 }, { unique: true });
 
 export default mongoose.model("Conversation", conversationSchema);
