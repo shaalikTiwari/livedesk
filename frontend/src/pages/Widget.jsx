@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import { Send } from "lucide-react";
 import socket from "../socket";
 
-const BUSINESS_ID = "acme-corp-niiaa"; // <-- keep this as YOUR real businessId
+const BUSINESS_ID = "livedesk-enot0"; // <-- keep this as YOUR real businessId
 const CONVERSATION_ID = "demo-conversation-1";
 
 function formatTime(date) {
