@@ -6,6 +6,7 @@ import dotenv from "dotenv";
 import mongoose from "mongoose";
 
 import messageRoutes from "./routes/messageRoutes.js";
+import authRoutes from "./routes/authRoutes.js";
 import Message from "./models/Message.js";
 import Conversation from "./models/Conversation.js";
 
@@ -19,6 +20,7 @@ app.get("/", (req, res) => {
   res.json({ status: "LiveDesk backend is running" });
 });
 
+app.use("/api/auth", authRoutes);
 app.use("/api/conversations", messageRoutes);
 
 const server = http.createServer(app);

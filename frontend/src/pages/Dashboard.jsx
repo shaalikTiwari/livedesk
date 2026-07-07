@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import socket from "../socket";
 
 function Dashboard() {
@@ -9,13 +10,34 @@ function Dashboard() {
   const [customerTyping, setCustomerTyping] = useState(false);
   const messagesEndRef = useRef(null);
   const typingTimeoutRef = useRef(null);
+  const navigate = useNavigate();
+
+  const token = localStorage.getItem("livedesk_token");
+  const agent = JSON.parse(localStorage.getItem("livedesk_agent") || "null");
 
   useEffect(() => {
-    fetch(`${import.meta.env.VITE_SOCKET_URL}/api/conversations`)
-      .then((res) => res.json())
-      .then((data) => setConversations(data.conversations || []))
+    if (!token) {
+      navigate("/login");
+      return;
+    }
+
+    fetch(`${import.meta.env.VITE_SOCKET_URL}/api/conversations`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => {
+        if (res.status === 401) {
+          localStorage.removeItem("livedesk_token");
+          localStorage.removeItem("livedesk_agent");
+          navigate("/login");
+          return null;
+        }
+        return res.json();
+      })
+      .then((data) => {
+        if (data) setConversations(data.conversations || []);
+      })
       .catch((err) => console.error("Error loading conversations:", err));
-  }, []);
+  }, [token, navigate]);
 
   useEffect(() => {
     socket.on("receive_message", (message) => {
@@ -86,26 +108,43 @@ function Dashboard() {
     }, 1500);
   };
 
+  const handleLogout = () => {
+    localStorage.removeItem("livedesk_token");
+    localStorage.removeItem("livedesk_agent");
+    navigate("/login");
+  };
+
   return (
     <div className="min-h-screen bg-gray-100 flex">
-      <div className="w-72 bg-white border-r overflow-y-auto">
-        <div className="p-4 border-b font-semibold text-gray-800">
-          Conversations
-        </div>
-        {conversations.map((conv) => (
-          <div
-            key={conv._id}
-            onClick={() => openConversation(conv.conversationId)}
-            className={`p-4 border-b cursor-pointer hover:bg-gray-50 ${
-              activeId === conv.conversationId ? "bg-blue-50" : ""
-            }`}
-          >
-            <div className="font-medium text-sm text-gray-800">
-              {conv.customerName || "Anonymous Customer"}
-            </div>
-            <div className="text-xs text-gray-500">{conv.conversationId}</div>
+      <div className="w-72 bg-white border-r overflow-y-auto flex flex-col">
+        <div className="p-4 border-b flex items-center justify-between">
+          <div>
+            <div className="font-semibold text-gray-800">Conversations</div>
+            {agent && <div className="text-xs text-gray-500">{agent.name}</div>}
           </div>
-        ))}
+          <button
+            onClick={handleLogout}
+            className="text-xs text-red-500 hover:underline"
+          >
+            Logout
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto">
+          {conversations.map((conv) => (
+            <div
+              key={conv._id}
+              onClick={() => openConversation(conv.conversationId)}
+              className={`p-4 border-b cursor-pointer hover:bg-gray-50 ${
+                activeId === conv.conversationId ? "bg-blue-50" : ""
+              }`}
+            >
+              <div className="font-medium text-sm text-gray-800">
+                {conv.customerName || "Anonymous Customer"}
+              </div>
+              <div className="text-xs text-gray-500">{conv.conversationId}</div>
+            </div>
+          ))}
+        </div>
       </div>
 
       <div className="flex-1 flex flex-col">
