@@ -19,11 +19,14 @@ const conversationSchema = new mongoose.Schema(
       enum: ["open", "closed"],
       default: "open",
     },
+    aiHandling: {
+      type: Boolean,
+      default: true,
+    },
   },
   { timestamps: true }
 );
 
-// A conversationId only needs to be unique WITHIN a business, not globally
 conversationSchema.index({ businessId: 1, conversationId: 1 }, { unique: true });
 
 export default mongoose.model("Conversation", conversationSchema);

@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Send } from "lucide-react";
+import { Send, Sparkles } from "lucide-react";
 import socket from "../socket";
 
 function formatTime(date) {
@@ -48,11 +48,11 @@ function WidgetEmbed() {
     });
 
     socket.on("typing", ({ sender }) => {
-      if (sender === "agent") setAgentTyping(true);
+      if (sender === "agent" || sender === "ai") setAgentTyping(true);
     });
 
     socket.on("stop_typing", ({ sender }) => {
-      if (sender === "agent") setAgentTyping(false);
+      if (sender === "agent" || sender === "ai") setAgentTyping(false);
     });
 
     socket.on("disconnect", () => {
@@ -130,8 +130,16 @@ function WidgetEmbed() {
 
         {messages.map((msg, idx) => {
           const isCustomer = msg.sender === "customer";
+          const prevMsg = messages[idx - 1];
+          const showLabel = msg.sender === "ai" && (!prevMsg || prevMsg.sender !== "ai");
+
           return (
             <div key={msg._id || idx} className={`flex flex-col ${isCustomer ? "items-end" : "items-start"}`}>
+              {showLabel && (
+                <span className="flex items-center gap-1 text-[10px] text-purple-500 mb-1 px-1">
+                  <Sparkles size={10} /> AI Assistant
+                </span>
+              )}
               <div
                 className={`px-3 py-2 rounded-2xl max-w-[80%] text-sm leading-relaxed ${
                   isCustomer

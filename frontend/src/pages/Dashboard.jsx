@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Send, LogOut, MessageCircle } from "lucide-react";
+import { Send, LogOut, MessageCircle, Sparkles } from "lucide-react";
 import socket from "../socket";
 
 const AVATAR_COLORS = [
@@ -54,12 +54,7 @@ function Dashboard() {
 
   const activeConversation = conversations.find((c) => c.conversationId === activeId);
 
-  useEffect(() => {
-    if (!token) {
-      navigate("/login");
-      return;
-    }
-
+  const loadConversations = () => {
     fetch(`${import.meta.env.VITE_SOCKET_URL}/api/conversations`, {
       headers: { Authorization: `Bearer ${token}` },
     })
@@ -75,7 +70,20 @@ function Dashboard() {
         if (data) setConversations(data.conversations || []);
       })
       .catch((err) => console.error("Error loading conversations:", err));
+  };
+
+  useEffect(() => {
+    if (!token) {
+      navigate("/login");
+      return;
+    }
+    loadConversations();
   }, [token, navigate]);
+
+  useEffect(() => {
+    if (!businessId) return;
+    socket.emit("join_business", businessId);
+  }, [businessId]);
 
   useEffect(() => {
     socket.on("receive_message", (message) => {
@@ -92,10 +100,13 @@ function Dashboard() {
       if (sender === "customer") setCustomerTyping(false);
     });
 
+    socket.on("conversations_updated", loadConversations);
+
     return () => {
       socket.off("receive_message");
       socket.off("typing");
       socket.off("stop_typing");
+      socket.off("conversations_updated", loadConversations);
     };
   }, [activeId, businessId]);
 
@@ -207,7 +218,18 @@ function Dashboard() {
                         {formatListTime(conv.updatedAt)}
                       </div>
                     </div>
-                    <div className="text-xs text-slate-500 truncate">{conv.conversationId}</div>
+                    <div className="flex items-center gap-1.5">
+                      <div className="text-xs text-slate-500 truncate">{conv.conversationId}</div>
+                      {conv.aiHandling ? (
+                        <span className="flex items-center gap-0.5 text-[10px] bg-purple-50 text-purple-600 px-1.5 py-0.5 rounded-full shrink-0">
+                          <Sparkles size={9} /> AI
+                        </span>
+                      ) : (
+                        <span className="text-[10px] bg-amber-50 text-amber-600 px-1.5 py-0.5 rounded-full shrink-0">
+                          Needs you
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
               );
@@ -220,34 +242,45 @@ function Dashboard() {
       <div className="flex-1 flex flex-col">
         {activeId ? (
           <>
-            <div className="bg-white border-b border-slate-200 px-6 py-4 flex items-center gap-3">
-              <div
-                className={`w-9 h-9 rounded-full ${getAvatarColor(
-                  activeId
-                )} text-white flex items-center justify-center text-sm font-semibold`}
-              >
-                {getInitial(activeConversation?.customerName || "Anonymous Customer")}
-              </div>
-              <div>
-                <div className="font-semibold text-slate-900 text-sm">
-                  {activeConversation?.customerName || "Anonymous Customer"}
+            <div className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div
+                  className={`w-9 h-9 rounded-full ${getAvatarColor(
+                    activeId
+                  )} text-white flex items-center justify-center text-sm font-semibold`}
+                >
+                  {getInitial(activeConversation?.customerName || "Anonymous Customer")}
                 </div>
-                <div className="text-xs text-slate-400">{activeId}</div>
+                <div>
+                  <div className="font-semibold text-slate-900 text-sm">
+                    {activeConversation?.customerName || "Anonymous Customer"}
+                  </div>
+                  <div className="text-xs text-slate-400">{activeId}</div>
+                </div>
               </div>
+              {activeConversation?.aiHandling ? (
+                <span className="flex items-center gap-1 text-xs bg-purple-50 text-purple-600 px-2.5 py-1 rounded-full">
+                  <Sparkles size={12} /> AI is handling this
+                </span>
+              ) : (
+                <span className="text-xs bg-amber-50 text-amber-600 px-2.5 py-1 rounded-full">
+                  You're handling this
+                </span>
+              )}
             </div>
 
             <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-50">
               {messages.map((msg, idx) => {
-                const isAgent = msg.sender === "agent";
+                const isBusinessSide = msg.sender === "agent" || msg.sender === "ai";
                 const prevMsg = messages[idx - 1];
                 const showAvatar = !prevMsg || prevMsg.sender !== msg.sender;
 
                 return (
                   <div
                     key={msg._id || idx}
-                    className={`flex items-end gap-2 ${isAgent ? "justify-end" : "justify-start"}`}
+                    className={`flex items-end gap-2 ${isBusinessSide ? "justify-end" : "justify-start"}`}
                   >
-                    {!isAgent && (
+                    {!isBusinessSide && (
                       <div
                         className={`w-7 h-7 rounded-full ${getAvatarColor(
                           activeId
@@ -258,11 +291,20 @@ function Dashboard() {
                         {getInitial(activeConversation?.customerName || "A")}
                       </div>
                     )}
-                    <div className={`flex flex-col ${isAgent ? "items-end" : "items-start"} max-w-[55%]`}>
+                    <div
+                      className={`flex flex-col ${isBusinessSide ? "items-end" : "items-start"} max-w-[55%]`}
+                    >
+                      {msg.sender === "ai" && showAvatar && (
+                        <span className="flex items-center gap-1 text-[10px] text-purple-500 mb-1 px-1">
+                          <Sparkles size={10} /> AI Assistant
+                        </span>
+                      )}
                       <div
                         className={`px-4 py-2 rounded-2xl text-sm leading-relaxed ${
-                          isAgent
+                          msg.sender === "agent"
                             ? "bg-blue-600 text-white rounded-br-md"
+                            : msg.sender === "ai"
+                            ? "bg-purple-600 text-white rounded-br-md"
                             : "bg-white text-slate-800 rounded-bl-md border border-slate-200"
                         }`}
                       >
@@ -302,7 +344,7 @@ function Dashboard() {
                 value={input}
                 onChange={handleInputChange}
                 onKeyDown={handleKeyDown}
-                placeholder="Type a reply..."
+                placeholder="Type a reply... (this will take over from AI)"
                 className="flex-1 border border-slate-200 rounded-full px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
               <button

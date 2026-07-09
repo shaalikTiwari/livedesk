@@ -9,6 +9,8 @@ import messageRoutes from "./routes/messageRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
 import Message from "./models/Message.js";
 import Conversation from "./models/Conversation.js";
+import Business from "./models/Business.js";
+import { getAIReply } from "./services/aiService.js";
 
 dotenv.config();
 
@@ -32,16 +34,19 @@ const io = new Server(server, {
   },
 });
 
-// Helper: build a namespaced room name so businesses never collide
 const roomName = (businessId, conversationId) => `${businessId}::${conversationId}`;
+const businessRoomName = (businessId) => `business::${businessId}`;
 
 io.on("connection", (socket) => {
   console.log(`Socket connected: ${socket.id}`);
 
   socket.on("join_conversation", ({ businessId, conversationId }) => {
-    const room = roomName(businessId, conversationId);
-    socket.join(room);
-    console.log(`Socket ${socket.id} joined room ${room}`);
+    socket.join(roomName(businessId, conversationId));
+  });
+
+  // Agents join this when the dashboard loads, so they get live conversation list updates
+  socket.on("join_business", (businessId) => {
+    socket.join(businessRoomName(businessId));
   });
 
   socket.on("typing", ({ businessId, conversationId, sender }) => {
@@ -55,13 +60,52 @@ io.on("connection", (socket) => {
   socket.on("send_message", async ({ businessId, conversationId, sender, text }) => {
     try {
       let conversation = await Conversation.findOne({ businessId, conversationId });
+      const isNewConversation = !conversation;
+
       if (!conversation) {
         conversation = await Conversation.create({ businessId, conversationId });
       }
 
       const message = await Message.create({ businessId, conversationId, sender, text });
-
       io.to(roomName(businessId, conversationId)).emit("receive_message", message);
+
+      if (isNewConversation) {
+        io.to(businessRoomName(businessId)).emit("conversations_updated");
+      }
+
+      // If an AGENT just replied manually, the human has taken over — AI stops responding here on
+      if (sender === "agent" && conversation.aiHandling) {
+        conversation.aiHandling = false;
+        await conversation.save();
+        io.to(businessRoomName(businessId)).emit("conversations_updated");
+      }
+
+      // If the CUSTOMER sent a message and AI is still handling this conversation, let AI respond
+      if (sender === "customer" && conversation.aiHandling) {
+        const recentMessages = await Message.find({ businessId, conversationId })
+          .sort({ createdAt: 1 })
+          .limit(20);
+
+        const business = await Business.findOne({ businessId });
+        const businessName = business?.name || "our team";
+
+        const aiResult = await getAIReply(businessName, recentMessages);
+
+        const aiMessage = await Message.create({
+          businessId,
+          conversationId,
+          sender: "ai",
+          text: aiResult.text,
+        });
+
+        io.to(roomName(businessId, conversationId)).emit("receive_message", aiMessage);
+
+        if (aiResult.escalate) {
+          conversation.aiHandling = false;
+          await conversation.save();
+          io.to(businessRoomName(businessId)).emit("conversations_updated");
+        }
+      }
     } catch (err) {
       console.error("Error saving message:", err);
     }
