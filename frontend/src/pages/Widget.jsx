@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import { Send, Sparkles, RotateCcw } from "lucide-react";
 import socket from "../socket";
 
-const BUSINESS_ID = "livedesk-enot0"; // <-- keep this as YOUR real businessId
+const BUSINESS_ID = "livedesk-4jdfi"; // <-- keep this as YOUR real businessId
 const STORAGE_KEY = `livedesk_test_conversation_${BUSINESS_ID}`;
 
 function getOrCreateConversationId() {
