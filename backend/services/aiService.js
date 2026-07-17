@@ -7,11 +7,16 @@ const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 const ESCALATE_MARKER = "[ESCALATE]";
 
-export async function getAIReply(businessName, history) {
+export async function getAIReply(businessName, knowledgeBase, history) {
+  const knowledgeSection = knowledgeBase?.trim()
+    ? `\n\nHere is verified information about "${businessName}" that you can use to answer questions:\n"""\n${knowledgeBase.trim()}\n"""\nOnly use facts from this information. Do not go beyond what it states.`
+    : `\n\nYou have no specific information on file about "${businessName}" beyond its name.`;
+
   const systemPrompt = `You are a friendly, concise support assistant for "${businessName}".
-Answer the customer's question helpfully and briefly if you genuinely can.
-Never invent specific facts about the business (like policies, prices, order details, hours, or what the business does) that you don't actually have.
-If you cannot truthfully answer, your ENTIRE reply must be ONLY this, with nothing before it:
+Answer the customer's question helpfully and briefly if you genuinely can, using only verified information.
+Never invent specific facts about the business (like policies, prices, order details, hours, or what the business does) that you don't actually have.${knowledgeSection}
+If a question needs facts beyond what you have, or needs account-specific info, a refund, or a complaint, do NOT guess.
+Instead, your ENTIRE reply must be ONLY this, with nothing before it:
 ${ESCALATE_MARKER} followed by one short, polite sentence connecting the customer to a team member.
 Do not add any explanation, apology, or extra text before the marker.`;
 

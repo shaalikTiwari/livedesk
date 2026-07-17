@@ -11,6 +11,10 @@ const businessSchema = new mongoose.Schema(
       required: true,
       unique: true,
     },
+    knowledgeBase: {
+      type: String,
+      default: "",
+    },
   },
   { timestamps: true }
 );

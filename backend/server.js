@@ -10,6 +10,7 @@ import authRoutes from "./routes/authRoutes.js";
 import Message from "./models/Message.js";
 import Conversation from "./models/Conversation.js";
 import Business from "./models/Business.js";
+import businessRoutes from "./routes/businessRoutes.js";
 import { getAIReply } from "./services/aiService.js";
 
 dotenv.config();
@@ -24,6 +25,7 @@ app.get("/", (req, res) => {
 
 app.use("/api/auth", authRoutes);
 app.use("/api/conversations", messageRoutes);
+app.use("/api/business", businessRoutes);
 
 const server = http.createServer(app);
 
@@ -86,10 +88,11 @@ io.on("connection", (socket) => {
           .sort({ createdAt: 1 })
           .limit(20);
 
-        const business = await Business.findOne({ businessId });
-        const businessName = business?.name || "our team";
-
-        const aiResult = await getAIReply(businessName, recentMessages);
+          const business = await Business.findOne({ businessId });
+          const businessName = business?.name || "our team";
+          const knowledgeBase = business?.knowledgeBase || "";
+  
+          const aiResult = await getAIReply(businessName, knowledgeBase, recentMessages);
 
         const aiMessage = await Message.create({
           businessId,

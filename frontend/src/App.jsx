@@ -3,6 +3,7 @@ import Widget from "./pages/Widget";
 import WidgetEmbed from "./pages/WidgetEmbed";
 import Dashboard from "./pages/Dashboard";
 import Login from "./pages/Login";
+import KnowledgeBase from "./pages/KnowledgeBase";
 
 function App() {
   return (
@@ -12,6 +13,7 @@ function App() {
         <Route path="/widget-embed" element={<WidgetEmbed />} />
         <Route path="/login" element={<Login />} />
         <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/dashboard/knowledge-base" element={<KnowledgeBase />} />
       </Routes>
     </BrowserRouter>
   );

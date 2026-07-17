@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Send, LogOut, MessageCircle, Sparkles } from "lucide-react";
+import { Send, LogOut, MessageCircle, Sparkles, BookOpen } from "lucide-react";
 import socket from "../socket";
 
 const AVATAR_COLORS = [
@@ -176,13 +176,22 @@ function Dashboard() {
               <div className="text-xs text-slate-500 truncate">Signed in as {agent.name}</div>
             )}
           </div>
-          <button
-            onClick={handleLogout}
-            title="Log out"
-            className="text-slate-400 hover:text-red-500 transition-colors p-1.5 rounded-lg hover:bg-slate-50 shrink-0"
-          >
-            <LogOut size={16} />
-          </button>
+          <div className="flex items-center gap-1 shrink-0">
+            <button
+              onClick={() => navigate("/dashboard/knowledge-base")}
+              title="AI Knowledge Base"
+              className="text-slate-400 hover:text-purple-500 transition-colors p-1.5 rounded-lg hover:bg-slate-50"
+            >
+              <BookOpen size={16} />
+            </button>
+            <button
+              onClick={handleLogout}
+              title="Log out"
+              className="text-slate-400 hover:text-red-500 transition-colors p-1.5 rounded-lg hover:bg-slate-50"
+            >
+              <LogOut size={16} />
+            </button>
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto">
